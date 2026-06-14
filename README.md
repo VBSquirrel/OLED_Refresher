@@ -1,6 +1,6 @@
 # OLED Refresher
 
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-squirrelbuilt-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/squirrelbuilt)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-SquirrelBuilt-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/squirrelbuilt)
 
 A small Windows tray app that periodically blacks out the screen for a couple of seconds to
 exercise OLED pixels and reduce **static-UI burn-in** during long gaming sessions (fixed HUDs,
