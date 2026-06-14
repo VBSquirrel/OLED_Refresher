@@ -117,7 +117,6 @@ internal sealed class RefreshPromptForm : Form
         _timer = new System.Windows.Forms.Timer { Interval = 1000 };
         _timer.Tick += OnTick;
 
-        PositionBottomRight();
         UpdateCountdownText();
     }
 
@@ -136,9 +135,18 @@ internal sealed class RefreshPromptForm : Form
         }
     }
 
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        // Position before the first paint, once the window has its real (DPI-scaled) size.
+        PositionBottomRight();
+    }
+
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        // Re-anchor in case the final size settled after load, so it is never clipped.
+        PositionBottomRight();
         if (_secondsLeft > 0 || _forced)
             _timer.Start();
     }
@@ -174,7 +182,13 @@ internal sealed class RefreshPromptForm : Form
     private void PositionBottomRight()
     {
         var wa = (Screen.PrimaryScreen ?? Screen.AllScreens[0]).WorkingArea;
-        Location = new Point(wa.Right - Width - 16, wa.Bottom - Height - 16);
+        const int margin = 16;
+
+        // Anchor to the bottom-right, then clamp so the entire window stays inside the
+        // work area regardless of DPI scaling or screen size.
+        int x = Math.Clamp(wa.Right - Width - margin, wa.Left, Math.Max(wa.Left, wa.Right - Width));
+        int y = Math.Clamp(wa.Bottom - Height - margin, wa.Top, Math.Max(wa.Top, wa.Bottom - Height));
+        Location = new Point(x, y);
     }
 
     protected override void Dispose(bool disposing)
