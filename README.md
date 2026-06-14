@@ -13,6 +13,18 @@ a true black overlay, with an optional minimize fallback for stubborn full-scree
 
 ---
 
+## Download (no build required)
+
+Grab the latest **`OledRefresher.exe`** from the
+[**Releases**](../../releases/latest) page, then run the one-time setup below or just double-click it.
+
+To auto-start it at sign-in without the scripts: press <kbd>Win</kbd>+<kbd>R</kbd>, type
+`shell:startup`, and drop a shortcut to `OledRefresher.exe` in that folder.
+
+(Prefer to build it yourself? See **Build & install** below.)
+
+---
+
 ## How it works
 
 A resident tray process keeps its own schedule and watches whether you're actively using the PC:
@@ -77,6 +89,27 @@ powershell -ExecutionPolicy Bypass -File .\build\Uninstall-OledRefresher.ps1 -Re
 dotnet publish .\src\OledRefresher\OledRefresher.csproj -c Release -r win-x64 `
   --self-contained true -p:PublishSingleFile=true -o .\publish
 ```
+
+### Visual Studio
+
+Open **`OledRefresher.sln`**, set the build configuration to **Release**, and press
+<kbd>F5</kbd> to run or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> to build. To produce the
+distributable EXE: **Build → Publish OledRefresher** and choose the included **`win-x64`** profile.
+
+### Releasing (maintainers)
+
+CI is set up in `.github/workflows`:
+
+- **build.yml** compiles the app on Windows for every push/PR (and uploads the EXE as a build artifact).
+- **release.yml** publishes the EXE + a zip to a **GitHub Release** when you push a version tag:
+
+  ```powershell
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+
+  Users can then download it from the repo's Releases page. You can also run the release workflow
+  manually from the **Actions** tab.
 
 ---
 
