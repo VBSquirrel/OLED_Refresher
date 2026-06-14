@@ -1,0 +1,45 @@
+name: release
+
+# Builds the EXE and publishes it as a downloadable GitHub Release asset.
+# Trigger by pushing a version tag, e.g.:
+#   git tag v1.0.0 && git push origin v1.0.0
+# or run manually from the Actions tab (workflow_dispatch).
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Publish (self-contained single file)
+        run: >
+          dotnet publish src/OledRefresher/OledRefresher.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none
+          -o publish
+
+      - name: Package zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/OledRefresher.exe -DestinationPath publish/OledRefresher-win-x64.zip -Force
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            publish/OledRefresher.exe
+            publish/OledRefresher-win-x64.zip
