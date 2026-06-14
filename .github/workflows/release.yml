@@ -1,20 +1,37 @@
 name: release
 
-# Builds the EXE and publishes it as a downloadable GitHub Release asset.
-# Trigger by pushing a version tag, e.g.:
-#   git tag v1.0.0 && git push origin v1.0.0
-# or run manually from the Actions tab (workflow_dispatch).
+# Builds the EXE on a clean Windows runner and publishes it as a downloadable
+# GitHub Release. The git tag is the single source of truth for the version.
+#
+# Publish a release by pushing an annotated version tag:
+#   git tag -a v1.2.3 -m "OLED Refresher 1.2.3"
+#   git push origin v1.2.3
+# ...or run this workflow manually from the Actions tab and supply the version.
 on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build and release (e.g. 1.2.3)"
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: write       # create the GitHub Release and its assets
+  id-token: write       # OIDC token used to sign the build provenance attestation
+  attestations: write   # store the provenance attestation
 
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      # Optional Authenticode code signing. Add these two repo secrets to enable it;
+      # when they are absent the signing step below is skipped automatically.
+      #   WINDOWS_CERT_BASE64   - base64 of your code-signing .pfx
+      #   WINDOWS_CERT_PASSWORD - the .pfx password
+      CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+      CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,23 +40,81 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Publish (self-contained single file)
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $v = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $v = '${{ inputs.version }}'
+          }
+          if ([string]::IsNullOrWhiteSpace($v)) {
+            Write-Error "Could not determine a version to build."
+            exit 1
+          }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "tag=v$v"    | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Building version $v"
+
+      - name: Publish (self-contained single file; version injected from the tag)
         run: >
           dotnet publish src/OledRefresher/OledRefresher.csproj
           -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:DebugType=none
+          -p:Version=${{ steps.version.outputs.version }}
           -o publish
+
+      # Sign the EXE before it is hashed, zipped and attested, so every downstream
+      # artifact reflects the signed binary. Skipped automatically with no certificate.
+      - name: Sign executable (Authenticode, if a certificate is configured)
+        if: ${{ env.CERT_BASE64 != '' }}
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe was not found on the runner." }
+          & $signtool.FullName sign /f $pfx /p $env:CERT_PASSWORD `
+            /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+            "publish/OledRefresher.exe"
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+          & $signtool.FullName verify /pa "publish/OledRefresher.exe"
+          Remove-Item $pfx -Force
 
       - name: Package zip
         shell: pwsh
         run: Compress-Archive -Path publish/OledRefresher.exe -DestinationPath publish/OledRefresher-win-x64.zip -Force
 
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          $hashes = Get-FileHash -Algorithm SHA256 `
+            publish/OledRefresher.exe, publish/OledRefresher-win-x64.zip
+          $lines = $hashes | ForEach-Object {
+            "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf)
+          }
+          Set-Content -Path publish/SHA256SUMS.txt -Value $lines -Encoding ascii
+          Get-Content publish/SHA256SUMS.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            publish/OledRefresher.exe
+            publish/OledRefresher-win-x64.zip
+
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             publish/OledRefresher.exe
             publish/OledRefresher-win-x64.zip
+            publish/SHA256SUMS.txt
