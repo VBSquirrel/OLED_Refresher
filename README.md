@@ -1,5 +1,7 @@
 # OLED Refresher
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-squirrelbuilt-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/squirrelbuilt)
+
 A small Windows tray app that periodically blacks out the screen for a couple of seconds to
 exercise OLED pixels and reduce **static-UI burn-in** during long gaming sessions (fixed HUDs,
 health bars, minimaps, score panels, etc.).
@@ -217,6 +219,13 @@ src/OledRefresher/        # .NET 8 WinForms tray app (C#)
   AppConfig / AppPaths / Logger / TrayIconFactory / NativeMethods
 build/                    # publish + install/uninstall PowerShell scripts
 ```
+
+## Support
+
+If OLED Refresher saved your panel and you'd like to say thanks, you can tip the developer — it's
+appreciated but never expected, and the app stays free either way. ☕
+
+<a href="https://www.buymeacoffee.com/squirrelbuilt"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="44"></a>
 
 ## License
 
