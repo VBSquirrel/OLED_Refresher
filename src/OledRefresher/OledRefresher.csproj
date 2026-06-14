@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <AssemblyName>OledRefresher</AssemblyName>
+    <RootNamespace>OledRefresher</RootNamespace>
+    <Product>OLED Refresher</Product>
+    <Company>OLED Refresher</Company>
+    <Authors>Chris Scott</Authors>
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Description>Periodic black-screen pixel refresh to reduce OLED burn-in during long gaming sessions.</Description>
+    <NeutralLanguage>en</NeutralLanguage>
+
+    <!-- Allow restore/build of this Windows-only app on non-Windows CI agents. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+</Project>
