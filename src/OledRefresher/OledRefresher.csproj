@@ -13,9 +13,10 @@
     <Product>OLED Refresher</Product>
     <Company>OLED Refresher</Company>
     <Authors>Chris Scott</Authors>
+    <!-- Local/dev default. Releases are versioned from the git tag: CI passes
+         -p:Version=<tag>, and FileVersion/AssemblyVersion/InformationalVersion
+         are derived from it automatically. -->
     <Version>1.0.0</Version>
-    <FileVersion>1.0.0.0</FileVersion>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <Description>Periodic black-screen pixel refresh to reduce OLED burn-in during long gaming sessions.</Description>
     <NeutralLanguage>en</NeutralLanguage>
 

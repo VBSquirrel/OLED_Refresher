@@ -23,6 +23,19 @@ To auto-start it at sign-in without the scripts: press <kbd>Win</kbd>+<kbd>R</kb
 
 (Prefer to build it yourself? See **Build & install** below.)
 
+### Verifying your download
+
+Each release ships a `SHA256SUMS.txt` and a signed **build provenance attestation**.
+
+```powershell
+# Check the file hash matches the published checksum
+(Get-FileHash .\OledRefresher.exe -Algorithm SHA256).Hash.ToLower()
+# ...compare against the line in SHA256SUMS.txt
+
+# Cryptographically verify the binary was built by this repo's CI (needs the GitHub CLI)
+gh attestation verify .\OledRefresher.exe --repo VBSquirrel/OLED_Refresher
+```
+
 ---
 
 ## How it works
@@ -101,15 +114,32 @@ distributable EXE: **Build → Publish OledRefresher** and choose the included *
 CI is set up in `.github/workflows`:
 
 - **build.yml** compiles the app on Windows for every push/PR (and uploads the EXE as a build artifact).
-- **release.yml** publishes the EXE + a zip to a **GitHub Release** when you push a version tag:
+- **release.yml** builds and publishes a **GitHub Release** when you push a version tag.
 
-  ```powershell
-  git tag v1.0.0
-  git push origin v1.0.0
-  ```
+The **git tag is the single source of truth for the version** — CI injects it with
+`-p:Version=<tag>`, so you never hand-edit the `.csproj`. Cut a release with an annotated tag:
 
-  Users can then download it from the repo's Releases page. You can also run the release workflow
-  manually from the **Actions** tab.
+```bash
+git tag -a v1.0.0 -m "OLED Refresher 1.0.0"
+git push origin v1.0.0
+```
+
+(Or run the workflow manually from the **Actions** tab and supply the version.)
+
+Each release automatically gets:
+
+- `OledRefresher.exe` + `OledRefresher-win-x64.zip`
+- `SHA256SUMS.txt` for download verification
+- a **build provenance attestation** (`actions/attest-build-provenance`) proving the binary came
+  from this repo's CI — verify with `gh attestation verify <file> --repo VBSquirrel/OLED_Refresher`
+- auto-generated release notes
+
+**One-time setup:** enable **Settings → Actions → General → Workflow permissions → Read and write**
+so the workflow can publish releases.
+
+**Optional code signing:** add repo secrets `WINDOWS_CERT_BASE64` (base64 of your code-signing
+`.pfx`) and `WINDOWS_CERT_PASSWORD`. When present, the release EXE is Authenticode-signed (which
+removes the SmartScreen "unknown publisher" warning); when absent, signing is skipped automatically.
 
 ---
 
