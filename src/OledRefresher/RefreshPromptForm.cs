@@ -16,12 +16,18 @@ internal enum PromptResult
 ///  • Normal  → "Run now" / "Snooze"; if ignored it auto-snoozes so it never lingers.
 ///  • Forced  → shown once the panel is overdue; counts down and then runs automatically
 ///              (snooze hidden unless <see cref="AppConfig.AllowSnoozePastDeadline"/>).
-/// It is created as a non-activating top-most tool window so it does not steal focus
-/// (and therefore input) from the game underneath.
+///
+/// The window auto-sizes to its content (labels wrap, buttons grow to their text) so nothing
+/// is ever clipped at any DPI scale. It is a non-activating top-most tool window so it does not
+/// steal focus (and therefore input) from the game underneath.
 /// </summary>
 internal sealed class RefreshPromptForm : Form
 {
+    // Logical width the text wraps at; the form grows to fit (and DPI-scales with everything else).
+    private const int ContentWidth = 300;
+
     private readonly bool _forced;
+    private readonly Color _accent;
     private readonly System.Windows.Forms.Timer _timer;
     private readonly Label _countdownLabel;
     private int _secondsLeft;
@@ -32,83 +38,90 @@ internal sealed class RefreshPromptForm : Form
     public RefreshPromptForm(AppConfig config, bool forced, TimeSpan sinceLastRefresh)
     {
         _forced = forced;
-
-        var accent = forced ? Color.FromArgb(220, 80, 60) : Color.FromArgb(46, 196, 182);
+        _accent = forced ? Color.FromArgb(220, 80, 60) : Color.FromArgb(46, 196, 182);
 
         FormBorderStyle = FormBorderStyle.None;
         BackColor = Color.FromArgb(28, 28, 32);
         ForeColor = Color.Gainsboro;
         ShowInTaskbar = false;
         TopMost = true;
-        Width = 360;
-        Height = 150;
         StartPosition = FormStartPosition.Manual;
+        AutoSize = true;
+        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        MinimumSize = new Size(300, 0);
+        // Left padding leaves room for the painted accent strip.
+        Padding = new Padding(18, 14, 16, 14);
+        ResizeRedraw = true; // repaint the accent strip when auto-size changes the height
 
-        Controls.Add(new Panel { Dock = DockStyle.Left, Width = 6, BackColor = accent });
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            BackColor = Color.Transparent,
+        };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        Controls.Add(new Label
+        var titleLabel = new Label
         {
             Text = forced ? "OLED protection — refresh required" : "OLED refresh due",
             Font = new Font("Segoe UI Semibold", 11f, FontStyle.Bold),
             ForeColor = forced ? Color.FromArgb(255, 140, 120) : Color.White,
-            AutoSize = false,
-            Location = new Point(20, 14),
-            Size = new Size(330, 26),
-        });
+            AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
+            Margin = new Padding(0, 0, 0, 6),
+        };
 
         int mins = Math.Max(1, (int)Math.Round(sinceLastRefresh.TotalMinutes));
-        Controls.Add(new Label
+        var messageLabel = new Label
         {
             Text = forced
                 ? $"Your panel hasn't been rested for ~{mins} min. A {config.OverlaySeconds}-second black refresh will run automatically."
                 : "Time to rest your panel with a brief black screen.",
-            AutoSize = false,
-            Location = new Point(20, 42),
-            Size = new Size(330, 40),
             Font = new Font("Segoe UI", 9f),
-        });
+            AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0), // wrap at this width, grow in height
+            Margin = new Padding(0, 0, 0, 6),
+        };
 
         _countdownLabel = new Label
         {
-            AutoSize = false,
-            Location = new Point(20, 84),
-            Size = new Size(330, 18),
             Font = new Font("Segoe UI", 8.5f),
             ForeColor = Color.Silver,
+            AutoSize = true,
+            MaximumSize = new Size(ContentWidth, 0),
+            Margin = new Padding(0, 0, 0, 10),
         };
-        Controls.Add(_countdownLabel);
 
-        var runButton = new Button
+        var buttons = new FlowLayoutPanel
         {
-            Text = "Run now",
-            Size = new Size(110, 30),
-            Location = new Point(238, 108),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = accent,
-            ForeColor = Color.Black,
-            TabStop = false,
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            WrapContents = false,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(0),
         };
-        runButton.FlatAppearance.BorderSize = 0;
+
+        var runButton = MakeButton("Run now", _accent, Color.Black);
         runButton.Click += (_, _) => Decide(PromptResult.RunNow);
-        Controls.Add(runButton);
+        buttons.Controls.Add(runButton); // rightmost (RightToLeft flow)
 
         bool allowSnooze = !forced || config.AllowSnoozePastDeadline;
         if (allowSnooze)
         {
-            var snoozeButton = new Button
-            {
-                Text = $"Snooze {config.SnoozeMinutes}m",
-                Size = new Size(110, 30),
-                Location = new Point(120, 108),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 66),
-                ForeColor = Color.Gainsboro,
-                TabStop = false,
-            };
-            snoozeButton.FlatAppearance.BorderSize = 0;
+            var snoozeButton = MakeButton($"Snooze {config.SnoozeMinutes}m", Color.FromArgb(60, 60, 66), Color.Gainsboro);
+            snoozeButton.Margin = new Padding(0, 0, 8, 0);
             snoozeButton.Click += (_, _) => Decide(PromptResult.Snooze);
-            Controls.Add(snoozeButton);
+            buttons.Controls.Add(snoozeButton); // left of "Run now"
         }
+
+        layout.Controls.Add(titleLabel);
+        layout.Controls.Add(messageLabel);
+        layout.Controls.Add(_countdownLabel);
+        layout.Controls.Add(buttons);
+        Controls.Add(layout);
 
         _secondsLeft = forced
             ? Math.Max(0, config.ForcedCountdownSeconds)
@@ -118,6 +131,25 @@ internal sealed class RefreshPromptForm : Form
         _timer.Tick += OnTick;
 
         UpdateCountdownText();
+    }
+
+    private static Button MakeButton(string text, Color back, Color fore)
+    {
+        var button = new Button
+        {
+            Text = text,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(96, 30),
+            Padding = new Padding(12, 6, 12, 6),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = back,
+            ForeColor = fore,
+            TabStop = false,
+            Margin = new Padding(0),
+        };
+        button.FlatAppearance.BorderSize = 0;
+        return button;
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -135,20 +167,36 @@ internal sealed class RefreshPromptForm : Form
         }
     }
 
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        // Accent strip down the left edge, inside the left padding.
+        using var brush = new SolidBrush(_accent);
+        e.Graphics.FillRectangle(brush, 0, 0, 6, Height);
+    }
+
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
-        // Position before the first paint, once the window has its real (DPI-scaled) size.
+        // Position before the first paint, once the window has its real (auto-sized) size.
         PositionBottomRight();
     }
 
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        // Re-anchor in case the final size settled after load, so it is never clipped.
+        // Re-anchor once the final size has settled so it is never clipped.
         PositionBottomRight();
         if (_secondsLeft > 0 || _forced)
             _timer.Start();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        // Keep the toast anchored to the corner if auto-size changes its dimensions.
+        if (IsHandleCreated && Visible)
+            PositionBottomRight();
     }
 
     private void OnTick(object? sender, EventArgs e)
